@@ -1,0 +1,68 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Identity
+@inject IServiceProvider _serviceProvider;
+@inject UserManager<Data.ApplicationUser> UserManager
+@inject AuthenticationStateProvider _authenticationStateProvider;
+
+
+ <PageTitle>Home</PageTitle>
+ @if(_isAuthenticated)
+{
+    <p>You are loggedin</p>
+    @if(_isAdmin)
+    {
+        <p>You are Admin</p>
+    }
+}
+else
+{
+    <p>You are not logged in</p>
+}
+@*<AuthorizeView>
+    <Authorized>
+        <p>You are login</p>
+    </Authorized>
+    <NotAuthorized>
+        <P>you are not logged in</P>
+
+    </NotAuthorized>
+</AuthorizeView>
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <p>
+            You are admin
+        </p>
+    </Authorized>
+</AuthorizeView>
+
+<PageTitle>Home</PageTitle> *@
+@code{
+    public bool _isAuthenticated;
+    public bool _isAdmin;
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await _authenticationStateProvider.GetAuthenticationStateAsync();
+        var authUser = authenticationState.User;
+        _isAuthenticated = authUser.Identity.IsAuthenticated;
+        _isAdmin = authUser.IsInRole("Admin");
+        //await CreateUserRolesAsync("dik@gmail.com", "Admin");
+        //return base.OnInitializedAsync();
+    }
+
+    public async Task CreateUserRolesAsync( string user, string role)
+    {
+        var roleManager = _serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var userManager = UserManager;
+
+        var userRoleCheck= await roleManager.RoleExistsAsync(role);
+        if (!userRoleCheck)
+            await roleManager.CreateAsync(new IdentityRole(role));
+            
+            
+            Data.ApplicationUser identityUser = await userManager.FindByEmailAsync(user);
+           await UserManager.AddToRoleAsync(identityUser, role);
+
+    }
+
+}
+
