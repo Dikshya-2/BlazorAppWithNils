@@ -1,15 +1,74 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
+@using BlazorAppWithNils.Models
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
 @inject IServiceProvider _serviceProvider;
 @inject UserManager<Data.ApplicationUser> UserManager
 @inject AuthenticationStateProvider _authenticationStateProvider;
+@inject TodoListContext _context;
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Policy = "AuthenticatedUser")]
 
-
- <PageTitle>Home</PageTitle>
- @if(_isAuthenticated)
+<PageTitle>Home</PageTitle>
+@if (_isAuthenticated)
 {
-    <p>You are loggedin</p>
-    @if(_isAdmin)
+    <p>You are logged in</p>
+
+   
+
+    <EditForm Model="registrationModel" OnValidSubmit="HandleCprRegistration" FormName="CprForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="form-group">
+            <label for="cprNr">Enter Your CPR Number</label>
+            <InputText id="cprNr" @bind-Value="registrationModel.CprNr" class="form-control" placeholder="e.g., 123456-7890" />
+        </div>
+        <button type="submit" class="btn btn-primary">Submit CPR</button>
+    </EditForm>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <p style="color:green">@successMessage</p>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p style="color:red">@errorMessage</p>
+    }
+
+    @if (isCprRegistered)
+    {
+        <h3>Your Todo List</h3>
+
+        <EditForm Model="todoModel" OnValidSubmit="HandleAddTodo" FormName="TodoForm">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-group">
+                <label for="item">New Todo Item</label>
+                <InputText id="item" @bind-Value="todoModel.Item" class="form-control" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Add Todo</button>
+        </EditForm>
+
+        @if (todoItems.Any())
+        {
+            <ul>
+                @foreach (var item in todoItems)
+                {
+                    <li>@item.Item</li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p>No items in your Todo list.</p>
+        }
+    }
+    @if (_isAdmin)
     {
         <p>You are Admin</p>
     }
@@ -18,51 +77,152 @@ else
 {
     <p>You are not logged in</p>
 }
-@*<AuthorizeView>
-    <Authorized>
-        <p>You are login</p>
-    </Authorized>
-    <NotAuthorized>
-        <P>you are not logged in</P>
 
-    </NotAuthorized>
-</AuthorizeView>
-<AuthorizeView Roles="Admin">
-    <Authorized>
-        <p>
-            You are admin
-        </p>
-    </Authorized>
-</AuthorizeView>
-
-<PageTitle>Home</PageTitle> *@
-@code{
+@code {
     public bool _isAuthenticated;
     public bool _isAdmin;
+    private bool isCprRegistered;
+    private CprRegistrationModel registrationModel = new CprRegistrationModel();
+    private TodoModel todoModel = new TodoModel();
+    private List<TodoList> todoItems = new List<TodoList>();
+    private string? successMessage;
+    private string? errorMessage;
+
     protected override async Task OnInitializedAsync()
     {
         var authenticationState = await _authenticationStateProvider.GetAuthenticationStateAsync();
         var authUser = authenticationState.User;
         _isAuthenticated = authUser.Identity.IsAuthenticated;
         _isAdmin = authUser.IsInRole("Admin");
-        //await CreateUserRolesAsync("dik@gmail.com", "Admin");
-        //return base.OnInitializedAsync();
-    }
 
-    public async Task CreateUserRolesAsync( string user, string role)
+        if (_isAuthenticated)
+        {
+            var currentUser = await UserManager.GetUserAsync(authUser);
+            // var registeredCpr = await _context.Cprs.FirstOrDefaultAsync(c => c.User == currentUser.UserName);
+            // isCprRegistered = registeredCpr != null;
+            await LoadUserCprAndTodos(authUser);
+
+
+            // if (isCprRegistered)
+            // {
+            //     // Ensure the UserId is an integer
+            //     if (currentUser.Id != null) // Assuming Id is nullable
+            //     {
+            //         int userId = Convert.ToInt32(currentUser.Id); 
+            //         todoItems = await _context.TodoLists.Where(t => t.UserId == userId).ToListAsync();
+            //     }
+            // }
+        }
+    }
+    private async Task LoadUserCprAndTodos(ClaimsPrincipal authUser)
     {
-        var roleManager = _serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        var userManager = UserManager;
+        var currentUser = await UserManager.GetUserAsync(authUser);
+        var registeredCpr = await _context.Cprs.FirstOrDefaultAsync(c => c.User == currentUser.UserName);
+        isCprRegistered = registeredCpr != null;
 
-        var userRoleCheck= await roleManager.RoleExistsAsync(role);
-        if (!userRoleCheck)
-            await roleManager.CreateAsync(new IdentityRole(role));
-            
-            
-            Data.ApplicationUser identityUser = await userManager.FindByEmailAsync(user);
-           await UserManager.AddToRoleAsync(identityUser, role);
-
+        if (isCprRegistered)
+        {
+            if (int.TryParse(currentUser.Id, out int userId))
+            {
+                await LoadTodoItems(userId);
+            }
+            else
+            {
+                // Handle the case where the user ID conversion fails
+                errorMessage = "User ID conversion failed. Please check the user ID.";
+            }
+        }
+    }
+    private async Task LoadTodoItems(int userId)
+    {
+        todoItems = await _context.TodoLists.Where(t => t.UserId == userId).ToListAsync();
     }
 
+    private async Task HandleCprRegistration()
+    {
+        try
+        {
+            if (await _context.Cprs.AnyAsync(c => c.CprNr == registrationModel.CprNr))
+            {
+                errorMessage = "This CPR number is already registered.";
+                return;
+            }
+            var currentUser = await UserManager.GetUserAsync((await _authenticationStateProvider.GetAuthenticationStateAsync()).User);
+            var newCpr = new Cpr
+                {
+                    User = currentUser.UserName,
+                    CprNr = registrationModel.CprNr
+                };
+
+            _context.Cprs.Add(newCpr);
+            await _context.SaveChangesAsync();
+
+            successMessage = "CPR number registered successfully!";
+            errorMessage = null; // Clear error message
+            isCprRegistered = true;
+
+            // Reload todo items
+            if (int.TryParse(currentUser.Id, out int userId)) // Convert currentUser.Id to int
+            {
+                await LoadTodoItems(userId);
+            }
+            else
+            {
+                errorMessage = "User ID conversion failed. Please check the user ID.";
+            }
+            
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task HandleAddTodo()
+    {
+        var currentUser = await UserManager.GetUserAsync((await _authenticationStateProvider.GetAuthenticationStateAsync()).User);
+        int userId = Convert.ToInt32(currentUser.Id);
+
+        var newItem = new TodoList
+            {
+                UserId = userId, 
+                Item = todoModel.Item
+            };
+
+        _context.TodoLists.Add(newItem);
+        await _context.SaveChangesAsync();
+
+        // Reload the todo items
+        todoItems.Add(newItem);
+        todoModel.Item = string.Empty; 
+    }
+
+    public class CprRegistrationModel
+    {
+        public string? CprNr { get; set; }
+    }
+
+    public class TodoModel
+    {
+        public string? Item { get; set; }
+    }
 }
+
+@* 
+//     public async Task CreateUserRolesAsync( string user, string role)
+//     {
+//         var roleManager = _serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+//         var userManager = UserManager;
+
+//         var userRoleCheck= await roleManager.RoleExistsAsync(role);
+//         if (!userRoleCheck)
+//             await roleManager.CreateAsync(new IdentityRole(role));
+            
+            
+//             Data.ApplicationUser identityUser = await userManager.FindByEmailAsync(user);
+//            await UserManager.AddToRoleAsync(identityUser, role);
+
+//     }
+
+// } *@
 

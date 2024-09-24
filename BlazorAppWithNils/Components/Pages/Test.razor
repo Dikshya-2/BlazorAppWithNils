@@ -1,0 +1,20 @@
+﻿
+@page "/test"
+
+<h3>Test Input</h3>
+
+<input @bind="userInput" />
+
+<button @onclick="Submit">Submit</button>
+
+<p>Output: @outputText</p>
+
+@code {
+    private string userInput;
+    private string outputText;
+
+    private void Submit()
+    {
+        outputText = userInput;
+    }
+}

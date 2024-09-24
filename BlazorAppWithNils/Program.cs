@@ -1,9 +1,12 @@
 using BlazorAppWithNils.Components;
 using BlazorAppWithNils.Components.Account;
 using BlazorAppWithNils.Data;
+using BlazorAppWithNils.Models;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Authentication;
 
 namespace BlazorAppWithNils
 {
@@ -32,6 +35,13 @@ namespace BlazorAppWithNils
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(connectionString));
+
+            //For todoList
+
+            var TodoConnection = builder.Configuration.GetConnectionString("TodoConnection") ?? throw new InvalidOperationException("Connection string 'TodoConnection' not found.");
+            builder.Services.AddDbContext<TodoListContext>(options =>
+                options.UseSqlServer(TodoConnection));
+
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
             builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
@@ -52,6 +62,19 @@ namespace BlazorAppWithNils
                         policy.RequireRole("Admin");
                     });
                 });
+            builder.WebHost.UseKestrel((contex, serverOptions) =>
+            {
+                serverOptions.Configure(contex.Configuration.GetSection("kestrePassword"))
+                .Endpoint("HTTPS", listenOptions => { listenOptions.HttpsOptions.SslProtocols = SslProtocols.Tls12; });
+            });
+            string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            userFolder = Path.Combine(userFolder, "aspnet");
+            userFolder = Path.Combine(userFolder, "https");
+            userFolder = Path.Combine(userFolder, "Dikshya.pfx");
+            userFolder = builder.Configuration.GetSection("Kestrel:EndPoints:Https:Certificate:Path").Value= userFolder;
+
+            string kestrelPassword = builder.Configuration.GetValue<string>("DikshyaPassword");
+            builder.Configuration.GetSection("Kestrel:Endpoints:Https:Certificate:Password").Value = kestrelPassword;
 
             builder.Services.Configure<IdentityOptions>(options =>
             {

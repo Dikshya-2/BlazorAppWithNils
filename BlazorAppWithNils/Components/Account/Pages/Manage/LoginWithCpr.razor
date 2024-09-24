@@ -1,0 +1,84 @@
+﻿@page "/Account/Manage/LoginWithCpr"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using BlazorAppWithNils.Data;
+@inject ILogger<LoginWithCpr> Logger
+@inject UserManager<Data.ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+@inject SignInManager<ApplicationUser> SignInManager
+<PageTitle>CPR Verification</PageTitle>
+
+<h3>CPR Number Verification</h3>
+<hr />
+<StatusMessage Message="@message" />
+
+<EditForm Model="Input" OnValidSubmit="OnValidSubmitAsync" method="post">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="form-floating mb-3">
+        <InputText @bind-Value="Input.CprNumber" class="form-control" autocomplete="off" />
+        <label for="cpr-number" class="form-label">Enter your CPR Number</label>
+        <ValidationMessage For="() => Input.CprNumber" class="text-danger" />
+    </div>
+
+    <div>
+        <button type="submit" class="btn btn-primary w-100">Verify CPR</button>
+    </div>
+</EditForm>
+
+<p>If you encounter issues, please <a href="contact-support">contact support</a>.</p>
+
+@code {
+    private string? message;
+    public string CprNumber { get; set; }
+
+
+    private InputModel Input { get; set; } = new();
+
+    private class InputModel
+    {
+        [Required(ErrorMessage = "CPR number is required.")]
+        [StringLength(10, ErrorMessage = "CPR number must be exactly {1} characters.", MinimumLength = 10)]
+        [RegularExpression(@"^\d{6}-\d{4}$", ErrorMessage = "CPR number must follow the format 123456-1234.")]
+        public string? CprNumber { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Ensure the user has gone through the username & password screen first
+        var user = await SignInManager.GetTwoFactorAuthenticationUserAsync() ??
+            throw new InvalidOperationException("Unable to load two-factor authentication user.");
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        // Get the currently signed-in user from two-factor context
+        var user = await SignInManager.GetTwoFactorAuthenticationUserAsync();
+        if (user == null)
+        {
+            message = "Unable to load user for two-factor authentication.";
+            return;
+        }
+
+        // Assuming the user's CPR number is stored in their profile
+        var appUser = await UserManager.FindByIdAsync(user.Id);
+        if (appUser == null)
+        {
+            message = "Unable to load application user.";
+            return;
+        }
+
+        // if (appUser.CprNumber == Input.CprNumber)
+        // {
+        //     Logger.LogInformation("User with ID '{UserId}' successfully verified CPR number.", user.Id);
+        //     // Redirect to home or another secured area
+        //     RedirectManager.RedirectTo("home");
+        // }
+        // else
+        // {
+        //     Logger.LogWarning("Invalid CPR number entered for user with ID '{UserId}'.", user.Id);
+        //     message = "Error: Invalid CPR number.";
+        // }
+    }
+}

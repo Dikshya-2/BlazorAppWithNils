@@ -1,0 +1,23 @@
+﻿@page "/test-script"
+
+<h3>Test Script</h3>
+
+<label for="userInput">Enter text:</label>
+<input id="userInput" @bind="userInput" />
+
+<button @onclick="Submit">Submit</button>
+
+<p>Resut: @outputText</p>
+
+@code {
+    private string userInput;
+    private string outputText; 
+
+    private void Submit()
+    {
+        
+        outputText = userInput;
+       
+        userInput = string.Empty;
+    }
+}

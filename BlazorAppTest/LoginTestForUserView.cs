@@ -35,7 +35,6 @@ namespace BlazorAppTest
             // // Register the mock UserManager in the service provider
             ctx.Services.AddSingleton(mockUserManager.Object);
 
-
             // Act
             var cut = ctx.RenderComponent<Home>();
 
