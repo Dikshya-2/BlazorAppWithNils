@@ -34,13 +34,13 @@ namespace BlazorAppWithNils
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(connectionString));
+                options.UseSqlite(connectionString));
 
             //For todoList
 
             var TodoConnection = builder.Configuration.GetConnectionString("TodoConnection") ?? throw new InvalidOperationException("Connection string 'TodoConnection' not found.");
             builder.Services.AddDbContext<TodoListContext>(options =>
-                options.UseSqlServer(TodoConnection));
+                options.UseSqlite(TodoConnection));
 
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
